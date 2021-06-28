@@ -59,3 +59,17 @@
 ;errors from different versions of ca65
 
 
+;first set vram_adr and vram_inc
+;decompresses rle files AND copy to vram
+.macro UNPACK_TO_VRAM  src_address
+.if .asize = 8
+	rep #$30
+.elseif .isize = 8
+	rep #$30
+.endif
+	lda #.loword(src_address)
+	ldx #^src_address
+	jsl Unrle
+	jsl DMA_VRAM
+.endmacro
+

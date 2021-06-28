@@ -1,27 +1,12 @@
-; example 11 SNES code
+; example 12 SNES code
 
 .p816
 .smart
 
-.segment "ZEROPAGE"
-temp1: .res 2
-temp2: .res 2
-temp3: .res 2
-temp4: .res 2
-temp5: .res 2
-temp6: .res 2
-pad1: .res 2
-pad1_new: .res 2
-pad2: .res 2
-pad2_new: .res 2
-in_nmi: .res 2
-which_effect: .res 1
-change_mode: .res 1
 
 
-
-
-.include "defines.asm"
+.include "regs.asm"
+.include "variables.asm"
 .include "macros.asm"
 .include "init.asm"
 .include "unrle.asm"
@@ -35,132 +20,87 @@ change_mode: .res 1
 .segment "CODE"
 
 ; enters here in forced blank
-main:
-.a16 ; just a standardized setting from init code
+Main:
+.a16 ; the setting from init code
 .i16
 	phk
 	plb
 	
 
 	
-; DMA from BG_Palette to CGRAM
-	A8
-	stz $2121 ; $2121 cg address = zero
+; COPY PALETTES to PAL_BUFFER	
+;	BLOCK_MOVE  length, src_addr, dst_addr
+	BLOCK_MOVE  256, BG_Palette, PAL_BUFFER
+	A8 ;block move will put AXY16. Undo that.
 	
-	stz $4300 ; transfer mode 0 = 1 register write once
-	lda #$22  ; $2122
-	sta $4301 ; destination, pal data
-	ldx #.loword(BG_Palette)
-	stx $4302 ; source
-	lda #^BG_Palette
-	sta $4304 ; bank
-	ldx #256
-	stx $4305 ; length
-	lda #1
-	sta $420b ; start dma, channel 0
+; DMA from PAL_BUFFER to CGRAM
+	jsr DMA_Palette ; in init.asm
 	
 	
 ; DMA from Tiles to VRAM	
 	lda #V_INC_1 ; the value $80
-	sta vram_inc ; $2115 = set the increment mode +1
+	sta VMAIN ; $2115 = set the increment mode +1
+	
+	
 	ldx #$0000
-	stx vram_addr ; set an address in the vram of $0000
-	
-	lda #1
-	sta $4300 ; transfer mode, 2 registers 1 write
-			  ; $2118 and $2119 are a pair Low/High
-	lda #$18  ; $2118
-	sta $4301 ; destination, vram data
+	stx VMADDL ; set an address in the vram of $0000
 
-; decompress first
-	AXY16
-	lda #.loword(Tiles)
-	ldx #^Tiles
-	jsl unrle ; unpacks to 7f0000 UNPACK_ADR
-	; returns y = length
-	; ax = unpack address (x is bank)
-	sta $4302 ; source
-	txa
-	A8
-	sta $4304 ; bank
-	sty $4305 ; length
-	lda #1
-	sta $420b ; start dma, channel 0
-	
+; decompress 
+	UNPACK_TO_VRAM Tiles
+
 	
 	
 ; DMA from Tilemap to VRAM	
 	ldx #$6000
-	stx vram_addr ; set an address in the vram of $6000
+	stx VMADDL ; set an address in the vram of $6000
 	
-; decompress first
-	AXY16
-	lda #.loword(Tilemap)
-	ldx #^Tilemap
-	jsl unrle ; unpacks to 7f0000 UNPACK_ADR
-	; returns y = length
-	; ax = unpack address (x is bank)
-	sta $4302 ; source
-	txa
-	A8
-	sta $4304 ; bank
-	sty $4305 ; length
-	lda #1
-	sta $420b ; start dma, channel 0
-	
+; decompress 
+	UNPACK_TO_VRAM Tilemap
+
 	
 	
 ; DMA from Tilemap2 to VRAM	
 	ldx #$6800
-	stx vram_addr ; set an address in the vram of $6000
+	stx VMADDL ; set an address in the vram of $6000
 	
-; decompress first
-	AXY16
-	lda #.loword(Tilemap2)
-	ldx #^Tilemap2
-	jsl unrle ; unpacks to 7f0000 UNPACK_ADR
-	; returns y = length
-	; ax = unpack address (x is bank)
-	sta $4302 ; source
-	txa
+; decompress 
+	UNPACK_TO_VRAM Tilemap2
+
+	
 	A8
-	sta $4304 ; bank
-	sty $4305 ; length
-	lda #1
-	sta $420b ; start dma, channel 0	
-	
 ;fix the BG off by 1 glitch at the bottom of the screen	
 	lda #$ff ;-1
-	sta bg1_scroll_y ; $210e ;write twice
-	sta bg1_scroll_y
-	sta bg2_scroll_y ; $2110 ;write twice
-	sta bg2_scroll_y
+	sta BG1VOFS ; $210e ;write twice
+	sta BG1VOFS
+	sta BG2VOFS ; $2110 ;write twice
+	sta BG2VOFS
 
 	lda #1 ; mode 1, tilesize 8x8 all
-	sta bg_size_mode ; $2105
-	stz bg12_tiles ; $210b BG 1 and 2 TILES at VRAM address $0000
+	sta BGMODE ; $2105
+	stz BG12NBA ; $210b BG 1 and 2 TILES at VRAM address $0000
 	lda #$60 ; bg1 map at VRAM address $6000
-	sta tilemap1 ; $2107
+	sta BG1SC ; $2107
 	lda #$68 ; bg2 map at VRAM address $6800
-	sta tilemap2 ; $2108
+	sta BG2SC ; $2108
 
 	lda #BG1_ON ; layer 1 on main
-	sta main_screen ; $212c
+	sta TM ; $212c
 	
 	lda #BG2_ON ; layer 2 on sub
-	sta sub_screen ; $212d
+	sta TS ; $212d
+	
 	
 	lda #NMI_ON|AUTO_JOY_ON
-	sta $4200
+	sta NMITIMEN ;$4200
 	
 	lda #FULL_BRIGHT ; $0f = turn the screen on (end forced blank)
-	sta fb_bright ; $2100
+	sta INIDISP ; $2100
 
 
-InfiniteLoop:	
+Infinite_Loop:	
 	A8
 	XY16
-	jsr wait_nmi ;wait for the beginning of v-blank
+	jsr Wait_NMI ;wait for the beginning of v-blank
 
 
 	
@@ -220,7 +160,7 @@ InfiniteLoop:
 
 
 
-	jsr pad_poll ;read controllers
+	jsr Pad_Poll ;read controllers
 	
 	A16
 	lda pad1_new
@@ -230,12 +170,12 @@ InfiniteLoop:
 	inc change_mode
 @no_buttons:
 	;A16 not needed
-	jmp InfiniteLoop
+	jmp Infinite_Loop
 	
 	
 	
 ;Set each color math effect
-;color_add_sel = $2130
+;CGWSEL = $2130
 ;ccmm--sd
 ;cc = main screen black if... 00 = never
 ;--11---- = prevent color math $30
@@ -243,7 +183,7 @@ InfiniteLoop:
 ;------0- = fixed color
 ;------1- = sub screen
 ;
-;color_add_des = $2131
+;CGADSUB = $2131
 ;shbo4321
 ;0------- add
 ;1------- subtract
@@ -251,7 +191,7 @@ InfiniteLoop:
 ;-1------ result is halved
 ;b = backdrop, o = sprites, 4321 = layers effected
 
-;color_fixed = $2132
+;COLDATA = $2132
 ;bgr ccccc
 ;3 writes, each with a color bit set
 
@@ -260,11 +200,11 @@ Set_CM0:
 .a8
 ;nothing, turn off color math
 	lda #$30
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;turn off fixed color	
 	lda #$e0
-	sta color_fixed ; $2132
+	sta COLDATA ; $2132
 	rts
 	
 	
@@ -273,11 +213,11 @@ Set_CM1:
 ;color math = add
 ;turn on color math, subscreen
 	lda #$02
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;adding, not half, affect all layers	
 	lda #$3f
-	sta color_add_des ; $2131
+	sta CGADSUB ; $2131
 	rts	
 	
 	
@@ -286,11 +226,11 @@ Set_CM2:
 ;color math = add half
 ;turn on color math, subscreen
 	lda #$02
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;adding, half, affect all layers	
 	lda #$7f
-	sta color_add_des ; $2131
+	sta CGADSUB ; $2131
 	rts	
 	
 	
@@ -299,11 +239,11 @@ Set_CM3:
 ;color math = subtract
 ;turn on color math, subscreen
 	lda #$02
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;subtract, not half, affect all layers	
 	lda #$bf
-	sta color_add_des ; $2131
+	sta CGADSUB ; $2131
 	rts	
 
 	
@@ -312,11 +252,11 @@ Set_CM4:
 ;color math = subtract half
 ;turn on color math, subscreen
 	lda #$02
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;subtract, half, affect all layers	
 	lda #$ff
-	sta color_add_des ; $2131
+	sta CGADSUB ; $2131
 	rts	
 
 	
@@ -325,15 +265,15 @@ Set_CM5:
 ;color math = only the fixed color, add
 ;turn on color math, fixed color
 	lda #$00
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;adding, not half, affect all layers	
 	lda #$3f
-	sta color_add_des ; $2131
+	sta CGADSUB ; $2131
 	
 ;set the fixed color to red 50%
 	lda #$2f ;red at 50%
-	sta color_fixed ; $2132
+	sta COLDATA ; $2132
 	rts
 	
 	
@@ -345,21 +285,21 @@ Set_CM6:
 ;and add the sub screen = show only the sub screen.
 ;turn on color math, subscreen
 	lda #$c2 ;= clip main always to black
-	sta color_add_sel ; $2130
+	sta CGWSEL ; $2130
 	
 ;adding, not half, affect all layers	
 	lda #$3f
-	sta color_add_des ; $2131
+	sta CGADSUB ; $2131
 	
 ;turn off fixed color	
 	lda #$e0
-	sta color_fixed ; $2132
+	sta COLDATA ; $2132
 	rts	
 	
 	
 	
 	
-wait_nmi:
+Wait_NMI:
 .a8
 .i16
 ;should work fine regardless of size of A
@@ -373,7 +313,7 @@ wait_nmi:
 	rts	
 	
 	
-pad_poll:
+Pad_Poll:
 .a8
 .i16
 	php
@@ -402,6 +342,32 @@ pad_poll:
 	sta pad2_new
 	plp
 	rts	
+	
+	
+	
+;jsl here	
+DMA_VRAM:
+.a16
+.i16
+; do during forced blank	
+; first set VRAM_Addr and VRAM_Inc
+; a = source
+; x = source bank
+; y = length in bytes
+	php
+	rep #$30 ;axy16
+	sta $4302 ; source and 4303
+	sep #$20 ;a8
+	txa
+	sta $4304 ; bank
+	lda #$18
+	sta $4301 ; destination, vram data
+	sty $4305 ; length, and 4306
+	lda #1
+	sta $4300 ; transfer mode, 2 registers, write once = 2 bytes
+	sta $420b ; start dma, channel 0
+	plp
+	rtl		
 	
 
 .include "header.asm"	

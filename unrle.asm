@@ -1,23 +1,56 @@
 ;unrle code to unpack the rle file from M1TE
-;unpack size can't be larger than 32kB ($8000)
 
 UNPACK_ADR = $7f0000
 
 
-
+;.segment "ZEROPAGE"
+;temp1: .res 2
+;temp2: .res 2
+;temp3: .res 2
+;temp4: .res 2
+;temp5: .res 2
+;temp6: .res 2
 
 
 .segment "CODE"
 
-;in axy16
+;----------------
+; UNRLE
+;----------------
+; used with R8C.py RLE or any output 
+; RLE file from M1TE or SPEZ
+; this assumes screen is OFF
+
+; First set VRAM address and inc mode
 ; a = address of the compressed data
 ; x = bank of the compressed data
-
+; jsl Unrle
+; will automatically decompress to
+; 7f0000 and then copy to the VRAM
+; UNPACK_ADR = $7f0000 see above
 ; returns y = size of unpacked data
 ; and ax = address of UNPACK_ADR
+; then call vram_dma to send data to vram
+
+; one byte header ----
+; MM CCCCCC
+; M - mode, C - count (+1)
+; 0 - literal, C+1 values (1-64)
+; 1 - rle run, C+1 times (1-64)
+; 2 - rle run, add 1 each pass, C+1 times (1-64)
+; 3 - extend the value count to 2 bytes
+; 00 lit, 40 rle, 80 plus, F0 special
+
+; two byte header ----
+; 11 MM CCCC (high) CCCCCCCC (low)
+; M - mode (as above), C - count (+1)
+; count 1-4096
+; c0 lit big, d0 = rle big, e0 = plus big
+; F0 - end of data, non-planar
+; FF - end of data, planar
 
 
-unrle:
+Unrle:
 .a16
 .i16
 	rep #$30 ; axy16
@@ -239,3 +272,6 @@ unrle:
 	;sep #$20 ;a8 - done at top of @loop
 	stx temp4 ;index to dst
 	jmp @loop
+
+	
+	
