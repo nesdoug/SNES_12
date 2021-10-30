@@ -10,7 +10,6 @@
 .include "macros.asm"
 .include "init.asm"
 .include "unrle.asm"
-.include "library.asm"
 
 
 
