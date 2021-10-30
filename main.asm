@@ -10,7 +10,7 @@
 .include "macros.asm"
 .include "init.asm"
 .include "unrle.asm"
-
+.include "library.asm"
 
 
 
@@ -377,19 +377,19 @@ DMA_VRAM:
 
 BG_Palette:
 ; 256 bytes
-.incbin "ImageConverter/Background.pal"
+.incbin "M1TE/Background.pal"
 
 Tiles:
 ; 4bpp tileset
-.incbin "ImageConverter/BG_Tiles.rle"
+.incbin "M1TE/BG_Tiles.rle"
 
 
 
 Tilemap:
-.incbin "ImageConverter/rocks.rle"
+.incbin "M1TE/rocks.rle"
 
 Tilemap2:
-.incbin "ImageConverter/RGB.rle"
+.incbin "M1TE/RGB.rle"
 
 
 
